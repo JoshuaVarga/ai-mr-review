@@ -1,0 +1,100 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:TodoApp.UI.ViewModels"
+             xmlns:conv="using:TodoApp.UI.Converters"
+             xmlns:models="using:TodoApp.Core.Models"
+             x:Class="TodoApp.UI.Views.MainView"
+             x:DataType="vm:MainViewModel"
+             x:Name="Root">
+
+  <UserControl.Resources>
+    <conv:StrikethroughConverter x:Key="StrikethroughConverter" />
+  </UserControl.Resources>
+
+  <Design.DataContext>
+    <vm:MainViewModel />
+  </Design.DataContext>
+
+  <UserControl.Styles>
+    <Style Selector="Button.add-btn">
+      <Setter Property="Background" Value="{StaticResource TnBlueBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource TnBgDarkBrush}" />
+      <Setter Property="CornerRadius" Value="6" />
+    </Style>
+    <Style Selector="Button.add-btn:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#9ab8f8" />
+    </Style>
+    <Style Selector="Button.remove-btn">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{StaticResource TnFgDimBrush}" />
+    </Style>
+    <Style Selector="Button.remove-btn:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.remove-btn:pointerover">
+      <Setter Property="Foreground" Value="{StaticResource TnRedBrush}" />
+    </Style>
+    <Style Selector="TextBox">
+      <Setter Property="Background" Value="{StaticResource TnBgLightBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource TnFgBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource TnBorderBrush}" />
+      <Setter Property="CaretBrush" Value="{StaticResource TnBlueBrush}" />
+    </Style>
+    <Style Selector="CheckBox">
+      <Setter Property="Foreground" Value="{StaticResource TnFgBrush}" />
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel Margin="20" Background="{StaticResource TnBgBrush}">
+    <TextBlock DockPanel.Dock="Top"
+               Text="Todo List"
+               FontSize="24"
+               FontWeight="Bold"
+               Foreground="{StaticResource TnBlueBrush}"
+               Margin="0,0,0,16" />
+
+    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,16">
+      <Button DockPanel.Dock="Right"
+              Classes="add-btn"
+              Content="Add"
+              Command="{Binding AddTodoCommand}"
+              Margin="8,0,0,0"
+              Padding="16,8" />
+      <TextBox Text="{Binding NewTodoText}"
+               Watermark="Enter a new task..."
+               MaxLength="200" />
+    </DockPanel>
+
+    <ScrollViewer>
+      <ItemsControl ItemsSource="{Binding Todos}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="models:TodoItem">
+            <Border Margin="0,2" Padding="8" CornerRadius="4"
+                    Background="{StaticResource TnBgLightBrush}"
+                    BorderBrush="{StaticResource TnBorderBrush}"
+                    BorderThickness="1">
+              <DockPanel>
+                <Button DockPanel.Dock="Right"
+                        Classes="remove-btn"
+                        Content="✕"
+                        Command="{Binding #Root.ViewModel.RemoveTodoCommand}"
+                        CommandParameter="{Binding Id}"
+                        FontSize="14"
+                        Padding="8,4" />
+                <CheckBox IsChecked="{Binding IsCompleted, Mode=OneWay}"
+                          Command="{Binding #Root.ViewModel.ToggleTodoCommand}"
+                          CommandParameter="{Binding Id}">
+                  <TextBlock Text="{Binding Title}"
+                             TextDecorations="{Binding IsCompleted,
+                               Converter={StaticResource StrikethroughConverter}}"
+                             Foreground="{StaticResource TnFgBrush}"
+                             VerticalAlignment="Center" />
+                </CheckBox>
+              </DockPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+  </DockPanel>
+</UserControl>

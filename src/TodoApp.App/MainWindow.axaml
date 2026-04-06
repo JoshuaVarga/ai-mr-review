@@ -1,0 +1,8 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="TodoApp.App.MainWindow"
+        Title="Todo App"
+        Width="500"
+        Height="600"
+        Background="#24283b">
+</Window>
