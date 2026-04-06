@@ -1,0 +1,32 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="TodoApp.App.App">
+  <Application.Styles>
+    <FluentTheme />
+  </Application.Styles>
+
+  <Application.Resources>
+    <ResourceDictionary>
+      <!-- Tokyo Night Storm palette -->
+      <Color x:Key="TnBg">#24283b</Color>
+      <Color x:Key="TnBgDark">#1f2335</Color>
+      <Color x:Key="TnBgLight">#292e42</Color>
+      <Color x:Key="TnFg">#c0caf5</Color>
+      <Color x:Key="TnFgDim">#565f89</Color>
+      <Color x:Key="TnBlue">#7aa2f7</Color>
+      <Color x:Key="TnRed">#f7768e</Color>
+      <Color x:Key="TnGreen">#9ece6a</Color>
+      <Color x:Key="TnBorder">#3b4261</Color>
+
+      <SolidColorBrush x:Key="TnBgBrush" Color="{StaticResource TnBg}" />
+      <SolidColorBrush x:Key="TnBgDarkBrush" Color="{StaticResource TnBgDark}" />
+      <SolidColorBrush x:Key="TnBgLightBrush" Color="{StaticResource TnBgLight}" />
+      <SolidColorBrush x:Key="TnFgBrush" Color="{StaticResource TnFg}" />
+      <SolidColorBrush x:Key="TnFgDimBrush" Color="{StaticResource TnFgDim}" />
+      <SolidColorBrush x:Key="TnBlueBrush" Color="{StaticResource TnBlue}" />
+      <SolidColorBrush x:Key="TnRedBrush" Color="{StaticResource TnRed}" />
+      <SolidColorBrush x:Key="TnGreenBrush" Color="{StaticResource TnGreen}" />
+      <SolidColorBrush x:Key="TnBorderBrush" Color="{StaticResource TnBorder}" />
+    </ResourceDictionary>
+  </Application.Resources>
+</Application>
