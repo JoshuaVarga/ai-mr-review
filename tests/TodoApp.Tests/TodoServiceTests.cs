@@ -10,8 +10,23 @@ namespace TodoApp.Tests;
 file class InMemoryTodoRepository : ITodoRepository
 {
     private readonly List<TodoItem> _items = [];
+    private readonly List<TodoList> _lists = [new TodoList(Guid.NewGuid(), "Default")];
 
-    public IReadOnlyList<TodoItem> LoadAll() => [.. _items];
+    public IReadOnlyList<TodoList> LoadAllLists() => [.. _lists];
+    public TodoList CreateList(string name)
+    {
+        var list = new TodoList(Guid.NewGuid(), name);
+        _lists.Add(list);
+        return list;
+    }
+    public void DeleteList(Guid listId)
+    {
+        _items.RemoveAll(t => t.ListId == listId);
+        _lists.RemoveAll(l => l.Id == listId);
+    }
+
+    public IReadOnlyList<TodoItem> LoadAllByList(Guid listId) =>
+        [.. _items.Where(t => t.ListId == listId)];
     public void Add(TodoItem item) => _items.Add(item);
     public void Update(TodoItem item)
     {
