@@ -15,13 +15,15 @@ public partial class MainView : ReactiveUserControl<MainViewModel>
     private void OnCreateListClick(object? sender, RoutedEventArgs e)
     {
         var textBox = this.FindControl<TextBox>("NewListNameBox");
-        var name = textBox?.Text?.Trim();
+        if (textBox == null) return;
+
+        var name = textBox.Text?.Trim();
         if (string.IsNullOrWhiteSpace(name)) return;
 
         if (ViewModel?.SelectedTab is { IsAddingTasks: false } tab)
         {
             ViewModel.ConfirmNewList(tab, name);
-            textBox!.Text = "";
+            textBox.Text = "";
         }
     }
 }

@@ -21,10 +21,19 @@ public class TodoService : ITodoService
         _repository = repository;
 
         var allLists = repository.LoadAllLists();
-        _lists = new BehaviorSubject<IReadOnlyList<TodoList>>([.. allLists]);
+        if (allLists.Count == 0)
+        {
+            // Fallback: repository should always provide at least one list; create one if missing.
+            var fallback = repository.CreateList("Default");
+            _lists = new BehaviorSubject<IReadOnlyList<TodoList>>([fallback]);
+            _currentListId = fallback.Id;
+        }
+        else
+        {
+            _lists = new BehaviorSubject<IReadOnlyList<TodoList>>([.. allLists]);
+            _currentListId = allLists[0].Id;
+        }
 
-        // default to first list
-        _currentListId = allLists[0].Id;
         _items = [.. repository.LoadAllByList(_currentListId)];
         _todos = new BehaviorSubject<IReadOnlyList<TodoItem>>([.. _items]);
     }
@@ -39,27 +48,41 @@ public class TodoService : ITodoService
     public TodoList CreateList(string name)
     {
         var list = _repository.CreateList(name);
-        var allLists = _repository.LoadAllLists();
-        _lists.OnNext([.. allLists]);
-        Console.WriteLine($"DEBUG: Created list {list.Name} with id {list.Id}");
+        RefreshLists();
         return list;
     }
 
     public void DeleteList(Guid listId)
     {
         _repository.DeleteList(listId);
-        var allLists = _repository.LoadAllLists();
-        _lists.OnNext([.. allLists]);
+        RefreshLists();
 
-        if (_currentListId == listId && allLists.Count > 0)
+        if (_currentListId == listId)
         {
-            SelectList(allLists[0].Id);
+            var allLists = _lists.Value;
+            if (allLists.Count > 0)
+            {
+                SelectList(allLists[0].Id);
+            }
+            else
+            {
+                _currentListId = Guid.Empty;
+                _items = [];
+                PublishTodos();
+            }
         }
     }
+
+    // Emits the current todos whenever the specified list is the active list.
+    // In this single-active-list design, a tab only receives updates while its
+    // list is selected, which is also the only time its items can be mutated.
+    public IObservable<IReadOnlyList<TodoItem>> GetTodosForList(Guid listId) =>
+        _todos.AsObservable().Where(_ => _currentListId == listId);
 
     public void Add(string title)
     {
         if (string.IsNullOrWhiteSpace(title)) return;
+        if (_currentListId == Guid.Empty) return; // no valid list selected
 
         var item = new TodoItem(Guid.NewGuid(), title.Trim(), false, _currentListId);
         _repository.Add(item);
@@ -86,4 +109,6 @@ public class TodoService : ITodoService
     }
 
     private void PublishTodos() => _todos.OnNext([.. _items]);
+
+    private void RefreshLists() => _lists.OnNext([.. _repository.LoadAllLists()]);
 }

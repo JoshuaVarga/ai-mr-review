@@ -1,5 +1,4 @@
 using Microsoft.Data.Sqlite;
-using System.Data;
 using TodoApp.Core.Interfaces;
 using TodoApp.Core.Models;
 
@@ -18,33 +17,76 @@ public class SqliteTodoRepository : ITodoRepository
     private void Initialize()
     {
         using var connection = OpenConnection();
-        using var cmd = connection.CreateCommand();
-        cmd.CommandText = """
-            CREATE TABLE IF NOT EXISTS Lists (
-                Id   TEXT NOT NULL PRIMARY KEY,
-                Name TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS Todos (
-                Id          TEXT NOT NULL PRIMARY KEY,
-                Title       TEXT NOT NULL,
-                IsCompleted INTEGER NOT NULL DEFAULT 0,
-                ListId      TEXT NOT NULL,
-                FOREIGN KEY (ListId) REFERENCES Lists(Id) ON DELETE CASCADE
-            );
-            """;
-        cmd.ExecuteNonQuery();
 
-        // Ensure default list exists
-        using var check = connection.CreateCommand();
-        check.CommandText = "SELECT COUNT(*) FROM Lists WHERE Name = 'Default'";
-        var count = (long)check.ExecuteScalar()!;
-        if (count == 0)
+        // Create tables
+        using (var cmd = connection.CreateCommand())
         {
-            using var insert = connection.CreateCommand();
-            insert.CommandText = "INSERT INTO Lists (Id, Name) VALUES ($id, $name)";
-            insert.Parameters.AddWithValue("$id", Guid.NewGuid().ToString());
-            insert.Parameters.AddWithValue("$name", "Default");
-            insert.ExecuteNonQuery();
+            cmd.CommandText = """
+                CREATE TABLE IF NOT EXISTS Lists (
+                    Id   TEXT NOT NULL PRIMARY KEY,
+                    Name TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS Todos (
+                    Id          TEXT NOT NULL PRIMARY KEY,
+                    Title       TEXT NOT NULL,
+                    IsCompleted INTEGER NOT NULL DEFAULT 0,
+                    ListId      TEXT NOT NULL DEFAULT '',
+                    FOREIGN KEY (ListId) REFERENCES Lists(Id) ON DELETE CASCADE
+                );
+                """;
+            cmd.ExecuteNonQuery();
+        }
+
+        // Ensure default list exists, capturing its ID for migration use.
+        // ORDER BY rowid ensures the original row is returned deterministically
+        // in the unlikely event a user-created list shares the name 'Default'.
+        string defaultListId;
+        using (var check = connection.CreateCommand())
+        {
+            check.CommandText = "SELECT Id FROM Lists WHERE Name = 'Default' ORDER BY rowid LIMIT 1";
+            var existing = check.ExecuteScalar() as string;
+            if (existing == null)
+            {
+                defaultListId = Guid.NewGuid().ToString();
+                using var insert = connection.CreateCommand();
+                insert.CommandText = "INSERT INTO Lists (Id, Name) VALUES ($id, $name)";
+                insert.Parameters.AddWithValue("$id", defaultListId);
+                insert.Parameters.AddWithValue("$name", "Default");
+                insert.ExecuteNonQuery();
+            }
+            else
+            {
+                defaultListId = existing;
+            }
+        }
+
+        // Migrate: add ListId column to Todos for pre-existing databases that predate this schema version.
+        // On a fresh database the column already exists from CREATE TABLE above, so hasListId will be
+        // true and the ALTER TABLE branch is never reached.
+        // Note: the ALTER TABLE uses DEFAULT '' because SQLite requires a default for NOT NULL columns
+        // added via ALTER TABLE. The empty string is safe here only because the backfill step below
+        // immediately overwrites it with a valid list ID before any FK checks occur.
+        using (var pragma = connection.CreateCommand())
+        {
+            pragma.CommandText = "PRAGMA table_info(Todos)";
+            using var reader = pragma.ExecuteReader();
+            var hasListId = false;
+            while (reader.Read())
+            {
+                if (reader.GetString(1) == "ListId") { hasListId = true; break; }
+            }
+
+            if (!hasListId)
+            {
+                using var alter = connection.CreateCommand();
+                alter.CommandText = "ALTER TABLE Todos ADD COLUMN ListId TEXT NOT NULL DEFAULT ''";
+                alter.ExecuteNonQuery();
+
+                using var backfill = connection.CreateCommand();
+                backfill.CommandText = "UPDATE Todos SET ListId = $defaultListId WHERE ListId = ''";
+                backfill.Parameters.AddWithValue("$defaultListId", defaultListId);
+                backfill.ExecuteNonQuery();
+            }
         }
     }
 
@@ -67,29 +109,22 @@ public class SqliteTodoRepository : ITodoRepository
 
     public TodoList CreateList(string name)
     {
+        var id = Guid.NewGuid();
         using var connection = OpenConnection();
         using var cmd = connection.CreateCommand();
-        // BUG: SQL injection — using string interpolation instead of parameters
-        cmd.CommandText = $"INSERT INTO Lists (Id, Name) VALUES ('{Guid.NewGuid()}', '{name}')";
+        cmd.CommandText = "INSERT INTO Lists (Id, Name) VALUES ($id, $name)";
+        cmd.Parameters.AddWithValue("$id", id.ToString());
+        cmd.Parameters.AddWithValue("$name", name);
         cmd.ExecuteNonQuery();
 
-        // Read it back
-        using var read = connection.CreateCommand();
-        read.CommandText = $"SELECT Id, Name FROM Lists WHERE Name = '{name}' ORDER BY rowid DESC LIMIT 1";
-        using var reader = read.ExecuteReader();
-        reader.Read();
-        return new TodoList(Guid.Parse(reader.GetString(0)), reader.GetString(1));
+        return new TodoList(id, name);
     }
 
     public void DeleteList(Guid listId)
     {
         using var connection = OpenConnection();
-        // delete all todos in the list first
-        using var deleteTodos = connection.CreateCommand();
-        deleteTodos.CommandText = "DELETE FROM Todos WHERE ListId = $listId";
-        deleteTodos.Parameters.AddWithValue("$listId", listId.ToString());
-        deleteTodos.ExecuteNonQuery();
-        // delete the list
+        // Todos in this list are removed automatically via ON DELETE CASCADE;
+        // foreign key enforcement is enabled in OpenConnection via PRAGMA foreign_keys = ON.
         using var cmd = connection.CreateCommand();
         cmd.CommandText = "DELETE FROM Lists WHERE Id = $id";
         cmd.Parameters.AddWithValue("$id", listId.ToString());
@@ -152,6 +187,9 @@ public class SqliteTodoRepository : ITodoRepository
     {
         var connection = new SqliteConnection(_connectionString);
         connection.Open();
+        using var pragma = connection.CreateCommand();
+        pragma.CommandText = "PRAGMA foreign_keys = ON";
+        pragma.ExecuteNonQuery();
         return connection;
     }
 }

@@ -1,15 +1,15 @@
 using System.Reactive;
 using System.Reactive.Linq;
-using System.Collections.ObjectModel;
 using ReactiveUI;
 using TodoApp.Core.Interfaces;
 using TodoApp.Core.Models;
 
 namespace TodoApp.UI.ViewModels;
 
-public class TodoListTabViewModel : ReactiveObject
+public class TodoListTabViewModel : ReactiveObject, IDisposable
 {
     private readonly ITodoService _todoService;
+    private readonly IDisposable _todosSubscription;
 
     public Guid ListId { get; }
 
@@ -38,7 +38,7 @@ public class TodoListTabViewModel : ReactiveObject
     public bool IsAddingTasks
     {
         get => _isAddingTasks;
-        set => this.RaiseAndSetIfChanged(ref _isAddingTasks, value)
+        set => this.RaiseAndSetIfChanged(ref _isAddingTasks, value);
     }
 
     public ReactiveCommand<Unit, Unit> AddTodoCommand { get; }
@@ -64,6 +64,15 @@ public class TodoListTabViewModel : ReactiveObject
         ToggleTodoCommand = ReactiveCommand.Create<Guid>(id => _todoService.Toggle(id));
         RemoveTodoCommand = ReactiveCommand.Create<Guid>(id => _todoService.Remove(id));
 
-        _todoService.Todos.Subscribe(todos => Todos = todos);
+        // Naming-mode placeholder tabs (Guid.Empty) never display todos;
+        // skip the subscription to avoid holding a live observable for an invalid list ID.
+        _todosSubscription = listId != Guid.Empty
+            ? _todoService.GetTodosForList(listId).Subscribe(todos => Todos = todos)
+            : System.Reactive.Disposables.Disposable.Empty;
+    }
+
+    public void Dispose()
+    {
+        _todosSubscription.Dispose();
     }
 }

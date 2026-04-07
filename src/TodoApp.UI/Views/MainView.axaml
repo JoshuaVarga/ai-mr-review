@@ -3,7 +3,6 @@
              xmlns:vm="using:TodoApp.UI.ViewModels"
              xmlns:conv="using:TodoApp.UI.Converters"
              xmlns:models="using:TodoApp.Core.Models"
-             xmlns:views="using:TodoApp.UI.Views"
              x:Class="TodoApp.UI.Views.MainView"
              x:DataType="vm:MainViewModel"
              x:Name="Root">
@@ -94,7 +93,7 @@
             BorderThickness="0,1,0,0">
       <Panel>
         <!-- "Naming new list" overlay shown when tab is in naming mode -->
-        <StackPanel IsVisible="{Binding SelectedTab.IsAddingTasks, Converter={x:Static BoolConverters.Not}}"
+        <StackPanel IsVisible="{Binding SelectedTab.IsAddingTasks, Converter={x:Static BoolConverters.Not}, FallbackValue=False, TargetNullValue=False}"
                     VerticalAlignment="Center"
                     HorizontalAlignment="Center"
                     Spacing="8">
@@ -113,7 +112,7 @@
         </StackPanel>
 
         <!-- Normal todo view when in task mode -->
-        <DockPanel IsVisible="{Binding SelectedTab.IsAddingTasks}">
+        <DockPanel IsVisible="{Binding SelectedTab.IsAddingTasks, FallbackValue=False}">
           <DockPanel DockPanel.Dock="Top" Margin="0,12,0,12">
             <Button DockPanel.Dock="Right"
                     Classes="add-btn"

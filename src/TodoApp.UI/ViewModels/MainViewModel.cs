@@ -20,6 +20,8 @@ public class MainViewModel : ReactiveObject
         set
         {
             this.RaiseAndSetIfChanged(ref _selectedTab, value);
+            // Only call SelectList for task-mode tabs; naming-mode tabs use a
+            // temporary Guid.Empty ListId that is not a valid repository list.
             if (value is not null && value.IsAddingTasks)
             {
                 _todoService.SelectList(value.ListId);
@@ -30,28 +32,26 @@ public class MainViewModel : ReactiveObject
     public ReactiveCommand<Unit, Unit> AddTabCommand { get; }
     public ReactiveCommand<TodoListTabViewModel, Unit> SelectTabCommand { get; }
 
-    private string _newListName = "";
-    public string NewListName
-    {
-        get => _newListName;
-        set => this.RaiseAndSetIfChanged(ref _newListName, value);
-    }
-
     public MainViewModel(ITodoService todoService)
     {
         _todoService = todoService;
 
-        // Load existing lists into tabs
+        // Load existing lists into tabs; Take(1) because lists are managed exclusively
+        // through this ViewModel — we do not need to react to external list changes.
+        // Take(1) also auto-completes the subscription synchronously (BehaviorSubject
+        // always has a current value), so no IDisposable cleanup is required here.
         _todoService.Lists
             .Take(1)
-            .Subscribe(lists =>
-            {
-                foreach (var list in lists)
+            .Subscribe(
+                lists =>
                 {
-                    Tabs.Add(new TodoListTabViewModel(_todoService, list.Id, list.Name));
-                }
-                if (Tabs.Count > 0) SelectedTab = Tabs[0];
-            });
+                    foreach (var list in lists)
+                    {
+                        Tabs.Add(new TodoListTabViewModel(_todoService, list.Id, list.Name));
+                    }
+                    if (Tabs.Count > 0) SelectedTab = Tabs[0];
+                },
+                ex => System.Diagnostics.Debug.WriteLine($"Failed to load lists: {ex.Message}"));
 
         AddTabCommand = ReactiveCommand.Create(() =>
         {
@@ -76,8 +76,9 @@ public class MainViewModel : ReactiveObject
         {
             var newTab = new TodoListTabViewModel(_todoService, created.Id, created.Name);
             Tabs[index] = newTab;
+            tab.Dispose(); // dispose the replaced naming-mode placeholder
             SelectedTab = newTab;
-            _todoService.SelectList(created.Id);
+            // SelectList is already invoked by the SelectedTab setter above.
         }
     }
 }

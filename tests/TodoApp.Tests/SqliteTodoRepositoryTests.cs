@@ -5,6 +5,9 @@ namespace TodoApp.Tests;
 
 public class SqliteTodoRepositoryTests : IDisposable
 {
+    // URI format: file:<name>?mode=memory&cache=shared
+    // mode=memory keeps the database in-process; cache=shared lets multiple
+    // SqliteConnection instances within the same test share the same in-memory store.
     private readonly string _dbPath = $"file:test-{Guid.NewGuid():N}?mode=memory&cache=shared";
     private readonly SqliteTodoRepository _repo;
 
@@ -13,6 +16,8 @@ public class SqliteTodoRepositoryTests : IDisposable
         _repo = new SqliteTodoRepository(_dbPath);
     }
 
+    // No cleanup needed: the in-memory database is discarded automatically when
+    // all connections sharing the cache are closed (i.e. when the test finishes).
     public void Dispose() { }
 
     [Fact]
@@ -87,7 +92,14 @@ public class SqliteTodoRepositoryTests : IDisposable
         _repo.DeleteList(created.Id);
 
         Assert.Single(_repo.LoadAllLists()); // only Default remains
+        // LoadAllByList always returns empty for a non-existent or just-deleted list.
         Assert.Empty(_repo.LoadAllByList(created.Id));
+    }
+
+    [Fact]
+    public void LoadAllByList_NonExistentList_ReturnsEmpty()
+    {
+        Assert.Empty(_repo.LoadAllByList(Guid.NewGuid()));
     }
 
     [Fact]
