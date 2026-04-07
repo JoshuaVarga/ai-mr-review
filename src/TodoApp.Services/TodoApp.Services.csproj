@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TodoApp.Core\TodoApp.Core.csproj" />
+    <ProjectReference Include="..\TodoApp.DAL\TodoApp.DAL.csproj" />
   </ItemGroup>
 
   <ItemGroup>

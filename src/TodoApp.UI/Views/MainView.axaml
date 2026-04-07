@@ -3,6 +3,7 @@
              xmlns:vm="using:TodoApp.UI.ViewModels"
              xmlns:conv="using:TodoApp.UI.Converters"
              xmlns:models="using:TodoApp.Core.Models"
+             xmlns:views="using:TodoApp.UI.Views"
              x:Class="TodoApp.UI.Views.MainView"
              x:DataType="vm:MainViewModel"
              x:Name="Root">
@@ -23,6 +24,16 @@
     </Style>
     <Style Selector="Button.add-btn:pointerover /template/ ContentPresenter">
       <Setter Property="Background" Value="#9ab8f8" />
+    </Style>
+    <Style Selector="Button.tab-add-btn">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{StaticResource TnBlueBrush}" />
+      <Setter Property="FontSize" Value="18" />
+      <Setter Property="Padding" Value="8,2" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.tab-add-btn:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource TnBgLightBrush}" />
     </Style>
     <Style Selector="Button.remove-btn">
       <Setter Property="Background" Value="Transparent" />
@@ -53,48 +64,101 @@
                Foreground="{StaticResource TnBlueBrush}"
                Margin="0,0,0,16" />
 
-    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,16">
+    <!-- Tab header row -->
+    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
       <Button DockPanel.Dock="Right"
-              Classes="add-btn"
-              Content="Add"
-              Command="{Binding AddTodoCommand}"
-              Margin="8,0,0,0"
-              Padding="16,8" />
-      <TextBox Text="{Binding NewTodoText}"
-               Watermark="Enter a new task..."
-               MaxLength="200" />
-    </DockPanel>
-
-    <ScrollViewer>
-      <ItemsControl ItemsSource="{Binding Todos}">
+              Classes="tab-add-btn"
+              Content="+"
+              Command="{Binding AddTabCommand}" />
+      <ItemsControl ItemsSource="{Binding Tabs}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <StackPanel Orientation="Horizontal" Spacing="4" />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
-          <DataTemplate x:DataType="models:TodoItem">
-            <Border Margin="0,2" Padding="8" CornerRadius="4"
+          <DataTemplate x:DataType="vm:TodoListTabViewModel">
+            <Button Content="{Binding Name}"
+                    Command="{Binding #Root.ViewModel.SelectTabCommand}"
+                    CommandParameter="{Binding}"
+                    Padding="12,6"
+                    CornerRadius="4,4,0,0"
                     Background="{StaticResource TnBgLightBrush}"
-                    BorderBrush="{StaticResource TnBorderBrush}"
-                    BorderThickness="1">
-              <DockPanel>
-                <Button DockPanel.Dock="Right"
-                        Classes="remove-btn"
-                        Content="✕"
-                        Command="{Binding #Root.ViewModel.RemoveTodoCommand}"
-                        CommandParameter="{Binding Id}"
-                        FontSize="14"
-                        Padding="8,4" />
-                <CheckBox IsChecked="{Binding IsCompleted, Mode=OneWay}"
-                          Command="{Binding #Root.ViewModel.ToggleTodoCommand}"
-                          CommandParameter="{Binding Id}">
-                  <TextBlock Text="{Binding Title}"
-                             TextDecorations="{Binding IsCompleted,
-                               Converter={StaticResource StrikethroughConverter}}"
-                             Foreground="{StaticResource TnFgBrush}"
-                             VerticalAlignment="Center" />
-                </CheckBox>
-              </DockPanel>
-            </Border>
+                    Foreground="{StaticResource TnFgBrush}" />
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>
-    </ScrollViewer>
+    </DockPanel>
+
+    <Border BorderBrush="{StaticResource TnBorderBrush}"
+            BorderThickness="0,1,0,0">
+      <Panel>
+        <!-- "Naming new list" overlay shown when tab is in naming mode -->
+        <StackPanel IsVisible="{Binding SelectedTab.IsAddingTasks, Converter={x:Static BoolConverters.Not}}"
+                    VerticalAlignment="Center"
+                    HorizontalAlignment="Center"
+                    Spacing="8">
+          <TextBlock Text="Name your new list:"
+                     Foreground="{StaticResource TnFgBrush}"
+                     HorizontalAlignment="Center" />
+          <TextBox x:Name="NewListNameBox"
+                   Watermark="List name..."
+                   Width="250"
+                   MaxLength="100" />
+          <Button Classes="add-btn"
+                  Content="Create"
+                  HorizontalAlignment="Center"
+                  Padding="16,8"
+                  Click="OnCreateListClick" />
+        </StackPanel>
+
+        <!-- Normal todo view when in task mode -->
+        <DockPanel IsVisible="{Binding SelectedTab.IsAddingTasks}">
+          <DockPanel DockPanel.Dock="Top" Margin="0,12,0,12">
+            <Button DockPanel.Dock="Right"
+                    Classes="add-btn"
+                    Content="Add"
+                    Command="{Binding SelectedTab.AddTodoCommand}"
+                    Margin="8,0,0,0"
+                    Padding="16,8" />
+            <TextBox Text="{Binding SelectedTab.NewTodoText}"
+                     Watermark="Enter a new task..."
+                     MaxLength="200" />
+          </DockPanel>
+
+          <ScrollViewer>
+            <ItemsControl ItemsSource="{Binding SelectedTab.Todos}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="models:TodoItem">
+                  <Border Margin="0,2" Padding="8" CornerRadius="4"
+                          Background="{StaticResource TnBgLightBrush}"
+                          BorderBrush="{StaticResource TnBorderBrush}"
+                          BorderThickness="1">
+                    <DockPanel>
+                      <Button DockPanel.Dock="Right"
+                              Classes="remove-btn"
+                              Content="✕"
+                              Command="{Binding #Root.ViewModel.SelectedTab.RemoveTodoCommand}"
+                              CommandParameter="{Binding Id}"
+                              FontSize="14"
+                              Padding="8,4" />
+                      <CheckBox IsChecked="{Binding IsCompleted, Mode=OneWay}"
+                                Command="{Binding #Root.ViewModel.SelectedTab.ToggleTodoCommand}"
+                                CommandParameter="{Binding Id}">
+                        <TextBlock Text="{Binding Title}"
+                                   TextDecorations="{Binding IsCompleted,
+                                     Converter={StaticResource StrikethroughConverter}}"
+                                   Foreground="{StaticResource TnFgBrush}"
+                                   VerticalAlignment="Center" />
+                      </CheckBox>
+                    </DockPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </DockPanel>
+      </Panel>
+    </Border>
   </DockPanel>
 </UserControl>
