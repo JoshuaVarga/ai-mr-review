@@ -10,8 +10,23 @@ namespace TodoApp.Tests;
 file class InMemoryTodoRepository : ITodoRepository
 {
     private readonly List<TodoItem> _items = [];
+    private readonly List<TodoList> _lists = [new TodoList(Guid.NewGuid(), "Default")];
 
-    public IReadOnlyList<TodoItem> LoadAll() => [.. _items];
+    public IReadOnlyList<TodoList> LoadAllLists() => [.. _lists];
+    public TodoList CreateList(string name)
+    {
+        var list = new TodoList(Guid.NewGuid(), name);
+        _lists.Add(list);
+        return list;
+    }
+    public void DeleteList(Guid listId)
+    {
+        _items.RemoveAll(t => t.ListId == listId);
+        _lists.RemoveAll(l => l.Id == listId);
+    }
+
+    public IReadOnlyList<TodoItem> LoadAllByList(Guid listId) =>
+        [.. _items.Where(t => t.ListId == listId)];
     public void Add(TodoItem item) => _items.Add(item);
     public void Update(TodoItem item)
     {
@@ -111,5 +126,53 @@ public class TodoServiceTests
         _service.Remove(Guid.NewGuid());
 
         Assert.Single(GetCurrentTodos());
+    }
+
+    [Fact]
+    public void CreateList_AppearsInListsObservable()
+    {
+        IReadOnlyList<TodoList> lists = [];
+        using var sub = _service.Lists.Subscribe(l => lists = l);
+
+        _service.CreateList("Work");
+
+        Assert.Equal(2, lists.Count);
+        Assert.Contains(lists, l => l.Name == "Work");
+    }
+
+    [Fact]
+    public void DeleteList_RemovesFromListsObservable()
+    {
+        var created = _service.CreateList("Work");
+        IReadOnlyList<TodoList> lists = [];
+        using var sub = _service.Lists.Subscribe(l => lists = l);
+
+        _service.DeleteList(created.Id);
+
+        Assert.Single(lists);
+        Assert.DoesNotContain(lists, l => l.Name == "Work");
+    }
+
+    [Fact]
+    public void SelectList_IsolatesItemsPerList()
+    {
+        var listA = _service.CreateList("A");
+        var listB = _service.CreateList("B");
+
+        _service.SelectList(listA.Id);
+        _service.Add("Task A");
+
+        _service.SelectList(listB.Id);
+        _service.Add("Task B");
+
+        _service.SelectList(listA.Id);
+        var todosA = GetCurrentTodos();
+        Assert.Single(todosA);
+        Assert.Equal("Task A", todosA[0].Title);
+
+        _service.SelectList(listB.Id);
+        var todosB = GetCurrentTodos();
+        Assert.Single(todosB);
+        Assert.Equal("Task B", todosB[0].Title);
     }
 }

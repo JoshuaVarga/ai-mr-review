@@ -5,8 +5,9 @@ namespace TodoApp.Tests;
 
 public class SqliteTodoRepositoryTests : IDisposable
 {
-    // SQLite shared-cache in-memory DB with a named URI so the same DB
-    // is reused across multiple connections within the same test.
+    // URI format: file:<name>?mode=memory&cache=shared
+    // mode=memory keeps the database in-process; cache=shared lets multiple
+    // SqliteConnection instances within the same test share the same in-memory store.
     private readonly string _dbPath = $"file:test-{Guid.NewGuid():N}?mode=memory&cache=shared";
     private readonly SqliteTodoRepository _repo;
 
@@ -15,21 +16,33 @@ public class SqliteTodoRepositoryTests : IDisposable
         _repo = new SqliteTodoRepository(_dbPath);
     }
 
+    // No cleanup needed: the in-memory database is discarded automatically when
+    // all connections sharing the cache are closed (i.e. when the test finishes).
     public void Dispose() { }
 
     [Fact]
-    public void LoadAll_EmptyOnStart()
+    public void DefaultListExists()
     {
-        Assert.Empty(_repo.LoadAll());
+        var lists = _repo.LoadAllLists();
+        Assert.Single(lists);
+        Assert.Equal("Default", lists[0].Name);
     }
 
     [Fact]
-    public void Add_AndLoadAll_ReturnsItem()
+    public void LoadAllByList_EmptyOnStart()
     {
-        var item = new TodoItem(Guid.NewGuid(), "Buy milk", false);
+        var defaultList = _repo.LoadAllLists()[0];
+        Assert.Empty(_repo.LoadAllByList(defaultList.Id));
+    }
+
+    [Fact]
+    public void Add_AndLoadAllByList_ReturnsItem()
+    {
+        var defaultList = _repo.LoadAllLists()[0];
+        var item = new TodoItem(Guid.NewGuid(), "Buy milk", false, defaultList.Id);
         _repo.Add(item);
 
-        var items = _repo.LoadAll();
+        var items = _repo.LoadAllByList(defaultList.Id);
         Assert.Single(items);
         Assert.Equal(item.Id, items[0].Id);
         Assert.Equal("Buy milk", items[0].Title);
@@ -39,33 +52,65 @@ public class SqliteTodoRepositoryTests : IDisposable
     [Fact]
     public void Update_ChangesIsCompleted()
     {
-        var item = new TodoItem(Guid.NewGuid(), "Buy milk", false);
+        var defaultList = _repo.LoadAllLists()[0];
+        var item = new TodoItem(Guid.NewGuid(), "Buy milk", false, defaultList.Id);
         _repo.Add(item);
 
         _repo.Update(item with { IsCompleted = true });
 
-        Assert.True(_repo.LoadAll()[0].IsCompleted);
+        Assert.True(_repo.LoadAllByList(defaultList.Id)[0].IsCompleted);
     }
 
     [Fact]
     public void Delete_RemovesItem()
     {
-        var item = new TodoItem(Guid.NewGuid(), "Buy milk", false);
+        var defaultList = _repo.LoadAllLists()[0];
+        var item = new TodoItem(Guid.NewGuid(), "Buy milk", false, defaultList.Id);
         _repo.Add(item);
 
         _repo.Delete(item.Id);
 
-        Assert.Empty(_repo.LoadAll());
+        Assert.Empty(_repo.LoadAllByList(defaultList.Id));
     }
 
     [Fact]
-    public void LoadAll_PreservesInsertionOrder()
+    public void CreateList_AddsNewList()
     {
-        _repo.Add(new TodoItem(Guid.NewGuid(), "First", false));
-        _repo.Add(new TodoItem(Guid.NewGuid(), "Second", false));
-        _repo.Add(new TodoItem(Guid.NewGuid(), "Third", false));
+        var created = _repo.CreateList("Work");
+        var lists = _repo.LoadAllLists();
+        Assert.Equal(2, lists.Count);
+        Assert.Equal("Work", created.Name);
+    }
 
-        var items = _repo.LoadAll();
+    [Fact]
+    public void DeleteList_RemovesListAndTodos()
+    {
+        var created = _repo.CreateList("Temp");
+        var item = new TodoItem(Guid.NewGuid(), "Task", false, created.Id);
+        _repo.Add(item);
+
+        _repo.DeleteList(created.Id);
+
+        Assert.Single(_repo.LoadAllLists()); // only Default remains
+        // LoadAllByList always returns empty for a non-existent or just-deleted list.
+        Assert.Empty(_repo.LoadAllByList(created.Id));
+    }
+
+    [Fact]
+    public void LoadAllByList_NonExistentList_ReturnsEmpty()
+    {
+        Assert.Empty(_repo.LoadAllByList(Guid.NewGuid()));
+    }
+
+    [Fact]
+    public void LoadAllByList_PreservesInsertionOrder()
+    {
+        var defaultList = _repo.LoadAllLists()[0];
+        _repo.Add(new TodoItem(Guid.NewGuid(), "First", false, defaultList.Id));
+        _repo.Add(new TodoItem(Guid.NewGuid(), "Second", false, defaultList.Id));
+        _repo.Add(new TodoItem(Guid.NewGuid(), "Third", false, defaultList.Id));
+
+        var items = _repo.LoadAllByList(defaultList.Id);
         Assert.Equal(["First", "Second", "Third"], items.Select(t => t.Title));
     }
 }
